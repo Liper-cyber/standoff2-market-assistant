@@ -1,0 +1,13 @@
+Запуск БазыДанных
+1. Перейти в папку PlanMaster/pgsql
+2. прописать bin\pg_ctl -D data -l logfile.log start
+
+
+adb shell settings put global http_proxy 192.168.1.67:1082
+
+
+ДЛЯ супер точного определения цифр необходимо установить модели с сайта
+https://www.jaided.ai/easyocr/modelhub/
+а именно: english_g2.pth и craft_mlt_25k.pth
+а так же pip install easyocr
+
