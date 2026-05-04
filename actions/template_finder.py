@@ -136,7 +136,7 @@ def find_number_on_screen(driver, regionX, regionY, regionW, regionH):
 
         # Бинаризация (пытаемся отделить текст от фона)
         _, binary = cv2.threshold(enhanced, 110, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
+        
         # Увеличение изображения
         enlarged = cv2.resize(binary, None, fx=2.8, fy=2.8, interpolation=cv2.INTER_CUBIC)
 
@@ -161,6 +161,9 @@ def find_number_on_screen(driver, regionX, regionY, regionW, regionH):
         if not results:
             print("❌ Ничего не найдено")
             return None
+
+        cv2.imwrite(f"debug_01_original.png", img_cv) 
+        cv2.imwrite(f"debug_final.png", final_img)
 
         texts = []
         for (bbox, text, prob) in results:
@@ -195,130 +198,164 @@ def find_number_on_screen(driver, regionX, regionY, regionW, regionH):
 import re
 
 
-def parse_quantity_from_text(driver, regionX, regionY, regionW, regionH):
+# в pixels_to_check указать координаты пикселя ,на фигме разсмещаем фотку оригинала и стави пиксель смотри X Y
+def debug_specific_pixels(driver, regionX, regionY, regionW, regionH):
     """
-    Находит ТОЛЬКО ЦИФРЫ в указанной области
+    Проверяем RGB пикселей в конкретных координатах
     """
-    print(f"🔍 Ищем текст в области: X={regionX}, Y={regionY}, W={regionW}, H={regionH}")
-    try:
-        # Делаем скриншот
-        screenshot = driver.get_screenshot_as_png()
-        screenshot_img = Image.open(io.BytesIO(screenshot))
+    
+    # Делаем скриншот
+    screenshot = driver.get_screenshot_as_png()
+    screenshot_img = Image.open(io.BytesIO(screenshot))
+    
+    # Обрезаем регион
+    region = screenshot_img.crop((regionX, regionY, regionX + regionW, regionY + regionH))
+    
+    # Конвертируем в OpenCV (BGR)
+    img = cv2.cvtColor(np.array(region), cv2.COLOR_RGB2BGR)
+    
+    # Сохраняем оригинал с разметкой
+    debug_img = img.copy()
+    
+    # Координаты для проверки (относительно региона)
+    pixels_to_check = [
+        (79, 6), # соеденение края
+        (77, 8), # центр шестреки
+        (68, 8), # 9 центр
+    ]
+    
+    print("\n🎨 RGB значения пикселей (в формате BGR и RGB):")
+    print("=" * 60)
+    
+    results = []
+    
+    for x, y in pixels_to_check:
+        # Проверяем что координаты в пределах изображения
+        h, w = img.shape[:2]
+        if x < w and y < h:
+            pixel_bgr = img[y, x]
+            pixel_rgb = (pixel_bgr[2], pixel_bgr[1], pixel_bgr[0])  # BGR -> RGB
+            
+            print(f"\n📍 Координаты ({x}, {y}):")
+            print(f"   BGR: ({pixel_bgr[0]:3d}, {pixel_bgr[1]:3d}, {pixel_bgr[2]:3d})")
+            print(f"   RGB: ({pixel_rgb[0]:3d}, {pixel_rgb[1]:3d}, {pixel_rgb[2]:3d})")
+            print(f"   HEX: #{pixel_rgb[0]:02x}{pixel_rgb[1]:02x}{pixel_rgb[2]:02x}")
+            
+            results.append({
+                'coord': (x, y),
+                'bgr': pixel_bgr,
+                'rgb': pixel_rgb
+            })
+            
+            # Рисуем точку на изображении
+            cv2.circle(debug_img, (x, y), 2, (0, 0, 255), -1)
+            cv2.putText(debug_img, f"{x},{y}", (x+5, y-5), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
+        else:
+            print(f"\n⚠️ Координаты ({x}, {y}) выходят за пределы изображения {w}x{h}")
+    
+    # Сохраняем изображение с отмеченными точками
+    cv2.imwrite("debug_marked_pixels.png", debug_img)
+    
+    # Анализируем диапазон цветов
+    if results:
+        bgr_values = [r['bgr'] for r in results]
+        bgr_min = np.min(bgr_values, axis=0)
+        bgr_max = np.max(bgr_values, axis=0)
         
-        # Обрезаем область
-        search_region = screenshot_img.crop((regionX, regionY, regionX + regionW, regionY + regionH))
+        print("\n" + "=" * 60)
+        print("📊 Анализ диапазона цветов:")
+        print(f"   BGR min = ({bgr_min[0]}, {bgr_min[1]}, {bgr_min[2]})")
+        print(f"   BGR max = ({bgr_max[0]}, {bgr_max[1]}, {bgr_max[2]})")
         
-        # Конвертируем в grayscale
-        search_region_cv = cv2.cvtColor(np.array(search_region), cv2.COLOR_RGB2GRAY)
+        # Добавляем допуск ±5 для маски
+        lower = np.array([max(0, bgr_min[0]-5), max(0, bgr_min[1]-5), max(0, bgr_min[2]-5)])
+        upper = np.array([min(255, bgr_max[0]+5), min(255, bgr_max[1]+5), min(255, bgr_max[2]+5)])
         
-        # Увеличиваем контрастность
-        search_region_cv = cv2.convertScaleAbs(search_region_cv, alpha=1.5, beta=0)
+        print(f"\n🎯 Рекомендуемый диапазон для маски (с допуском ±5):")
+        print(f"   lower = ({lower[0]}, {lower[1]}, {lower[2]})")
+        print(f"   upper = ({upper[0]}, {upper[1]}, {upper[2]})")
         
-        # Применяем бинаризацию
-        _, thresh = cv2.threshold(search_region_cv, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        # Создаем маску с этим диапазоном
+        mask = cv2.inRange(img, lower, upper)
+        cv2.imwrite("debug_mask_from_pixels.png", mask)
         
-        # Инвертируем если нужно (белый фон, черный текст)
-        # thresh = cv2.bitwise_not(thresh)
+        print(f"\n✅ Маска сохранена в debug_mask_from_pixels.png")
         
-        # Распознаем ТОЛЬКО цифры (конфиг для цифр)
-        custom_config = r'--oem 3 --psm 6 -c tessedit_char_whitelist=0123456789'
-        text = pytesseract.image_to_string(thresh, config=custom_config)
-        
-        # Очищаем текст
-        text = text.strip()
-        
-        print(f"🔍 Распознано: '{text}'")
-        return text
-        
-    except Exception as e:
-        print(f"❌ Ошибка: {e}")
-        return ""
+        # Подсчитываем сколько пикселей попало в маску
+        mask_pixels = np.sum(mask > 0)
+        print(f"   Пикселей в маске: {mask_pixels}")
+    
+    print("\n" + "=" * 60)
+    print("📝 Инструкция:")
+    print("1. Откройте debug_marked_pixels.png - красные точки это ваши координаты")
+    print("2. Проверьте что точки действительно на цифрах")
+    print("3. Если точки не на цифрах - скажите правильные координаты")
+    
+    return img, results
+
+def find_number_003(driver, regionX, regionY, regionW, regionH ,regionPrice=(5,15),debug=False):
+    """
+    Функция для темных цифр на темном фоне
+    """
+    
+    # Делаем скриншот
+    screenshot = driver.get_screenshot_as_png()
+    screenshot_img = Image.open(io.BytesIO(screenshot))
+    
+    # Обрезаем регион
+    region = screenshot_img.crop((regionX, regionY, regionX + regionW, regionY + regionH))
+    
+    # Конвертируем в OpenCV (BGR)
+    img = cv2.cvtColor(np.array(region), cv2.COLOR_RGB2BGR)
+    #увеличиваем
+    bigOrig = cv2.resize(img, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
+    # Создаем маску
+    maskBigOrig = np.zeros(bigOrig.shape[:2], dtype=np.uint8)
+    
+    # Диапазон цветов цифр (на основе ваших данных)
+    # Минимальные и максимальные значения из пикселей цифры:
+    lower = np.array([44, 45, 52])  # BGR нижняя граница
+    upper = np.array([65, 85, 100]) # BGR верхняя граница
+    
+    # Создаем маску по диапазону
+    maskBigOrig = cv2.inRange(bigOrig, lower, upper)
     
 
+    if debug:
+        cv2.imwrite("debug_01_original.png", img)
+        cv2.imwrite("debug_02_BigOriginal.png", bigOrig)
+        cv2.imwrite("debug_03_mask_.png", maskBigOrig)
 
 
-
-def find_number_on_screen21(driver, regionX, regionY, regionW, regionH):
-    """
-    Специальная версия под твои цвета текста (#564838, #664F37 и т.д.)
-    """
-    print(f"🔍 Ищем число в области: X={regionX}, Y={regionY}, W={regionW}, H={regionH}")
+    results = reader.readtext(
+        maskBigOrig,
+        detail=1,
+        paragraph=False,
+        allowlist='0123456789.G.',  # тот же белый список
+        text_threshold=0.3,          # ниже порог = больше находк
+        low_text=0.2,
+        contrast_ths=0.1,
+        adjust_contrast=0.8,
+        width_ths=0.7,               # уже - лучше разделяет символы
+        height_ths=0.7,
+        min_size=5                   # меньше минимальный размер
+    )
+    best_text = None
+    best_conf = 0
     
-    try:
-        screenshot = driver.get_screenshot_as_png()
-        screenshot_img = Image.open(io.BytesIO(screenshot))
+    for bbox, text, conf in results:
+        # Очистка
+        cleaned = ''.join(c for c in text if c.isdigit() or c == '.')
         
-        # Обрезаем область
-        search_region = screenshot_img.crop((regionX, regionY, regionX + regionW, regionY + regionH))
-        img_cv = cv2.cvtColor(np.array(search_region), cv2.COLOR_RGB2BGR)
+        if cleaned and conf > best_conf:
+            best_text = float(cleaned)
+            best_conf = conf
+            if best_text > regionPrice[0] and best_text < regionPrice[1]:
+                return best_text
+            else:
+                print('определил цену: ', best_text)
+                print('Больше деапазона , скорее все ошибка , ИЗМЕНИТЕ ДЕАПАЗОН regionPrice')
+                return None
 
-        # === HSV ===
-        hsv = cv2.cvtColor(img_cv, cv2.COLOR_BGR2HSV)
-
-        # Диапазон специально под твои 4 цвета
-        lower = np.array([15,  35,  35])   # H, S, V
-        upper = np.array([50, 255, 255])
-
-        # Создаём маску только по твоим цветам
-        mask = cv2.inRange(hsv, lower, upper)
-
-        # Улучшаем маску
-        kernel = np.ones((2, 2), np.uint8)
-        mask = cv2.dilate(mask, kernel, iterations=1)   # утолщаем буквы
-        # mask = cv2.erode(mask, kernel, iterations=1)  # можно включить, если будет шум
-
-        # Увеличение (не слишком сильное)
-        enlarged = cv2.resize(mask, None, fx=2.6, fy=2.6, interpolation=cv2.INTER_LINEAR)
-
-        # Слабое сглаживание
-        final_img = cv2.GaussianBlur(enlarged, (3, 3), 0)
-
-        # ==================== DEBUG ====================
-        ts = int(time.time())
-        cv2.imwrite(f"debug_01_original.png", img_cv) 
-        cv2.imwrite(f"debug_hsv_mask_{ts}.png", mask)
-        cv2.imwrite(f"debug_final_{ts}.png", final_img)
-        print(f"Debug сохранён → debug_hsv_mask_{ts}.png")
-        # ===============================================
-
-        # EasyOCR
-        results = reader.readtext(
-            final_img,
-            detail=1,
-            paragraph=False,
-            allowlist='0123456789.',
-            text_threshold=0.70,
-            low_text=0.45,
-            height_ths=0.8,
-            width_ths=0.9,
-            min_size=10
-        )
-
-        if not results:
-            print("❌ Ничего не найдено")
-            return None
-
-        texts = []
-        for (bbox, text, prob) in results:
-            if prob < 0.55:
-                continue
-            cleaned = ''.join(c for c in text if c.isdigit() or c == '.')
-            if cleaned:
-                texts.append((cleaned, prob))
-
-        if not texts:
-            print("❌ После очистки ничего не осталось")
-            return None
-
-        best_text, best_prob = max(texts, key=lambda x: x[1])
-        final = ''.join(c for c in best_text if c.isdigit() or c == '.')
-
-        value = float(final)
-        print(f"✅ EasyOCR: '{best_text}' (conf: {best_prob:.3f}) → {value}")
-        return value
-
-    except Exception as e:
-        print(f"❌ Ошибка: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
+    return None

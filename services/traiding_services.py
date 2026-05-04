@@ -33,7 +33,7 @@ class TraidingServices:
         max_attempts = 3
         print('начал опен скин')
         try:
-            shop = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/shop.png", threshold=0.7)
+            shop = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/shop.png", threshold=0.9)
             print('нажал ШОП') 
             if shop is False:
                 self.driver_manager.driver.back()
@@ -44,10 +44,10 @@ class TraidingServices:
                     return self.open_need_skin(skin_url , skin_name , attempts=0)
 
             time.sleep(1)
-            filter = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/filter.png", threshold=0.8)
+            filter = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/filter.png", threshold=0.9)
             print('нажал ФИЛЬТРЫ')
             time.sleep(1)
-            searchFilter = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/searchNameSkinFilter.png", threshold=0.8)
+            searchFilter = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/searchNameSkinFilter.png", threshold=0.9)
             print('нажал СЕРЧ')
             time.sleep(1)
             searchFilterFill = WebDriverWait(self.driver_manager.driver, 5).until(
@@ -62,9 +62,9 @@ class TraidingServices:
                     EC.presence_of_all_elements_located((AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("ОК")')))
                 OK_Button[0].click()
                 time.sleep(0.3)
-                ApplyFilterSkin = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/applySkinFilter.png", threshold=0.8)
+                ApplyFilterSkin = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/applySkinFilter.png", threshold=0.9)
                 time.sleep(1)
-                Skin = template_finder.find_item_region(self.driver_manager.driver, f"./img/skins/{skin_url}.png", threshold=0.6)
+                Skin = template_finder.find_item_region(self.driver_manager.driver, f"./img/skins/{skin_url}.png", threshold=0.9)
                 time.sleep(1)
                 return True
             else:
@@ -232,30 +232,181 @@ class TraidingServices:
             session_manager.reconnect_to_session(e)
             return self.get_gold_balance()
     
-    def test(self):
-        old_order_price = None
-        tew = template_finder.find_number_on_screen21(self.driver_manager.driver , regionX=746 , regionY=188 , regionW=56, regionH=28)
-        return
-        tew = template_finder.find_number_on_screen21(self.driver_manager.driver , regionX=754 , regionY=192 , regionW=48, regionH=18)
-        print(tew)
-        time.sleep(5)
+    
+            
+        
+
+
+class HuckPrice003():
+    def __init__(self):
+        self.price_field = None
+        self.attempts = 0
+        self.old_order_price = None
+        self.new_order_price = None
+        self.price_first_skin = None
+        self.driver_manager = driver_manager
+        self.cords_finnly_create_order = None
+    
+    def main_huck(self, regionPriceAll=(10,20) , attempts_search=150):
+        """Главаная функция которая получет цену запросу , после получает снова если цена меняется тогда проверяет центу первого скина , что бы не купит ьего
+        regionPriceAll - Деапазон цены , если у вашего скина закуп 17 голды а первый скин продажи 22 , ставьте (15,30) с запасом"""
         while True:
             try:
+                time.sleep(0.4)
                 str_t = time.time()
-                new_order_price = template_finder.find_number_on_screen21(self.driver_manager.driver , regionX=718 , regionY=66 , regionW=82, regionH=16)
-                if old_order_price is not None and old_order_price < new_order_price:
-                    print('новая цена cтавлюскин')
-                    tew = template_finder.find_number_on_screen23(self.driver_manager.driver , regionX=754 , regionY=192 , regionW=48, regionH=18)
-                    print("последняя цена запроса: " , tew)
-                    time.sleep(10)
-                    old_order_price = new_order_price
-                else:
-                    print('цена старая')
-                    old_order_price = new_order_price
 
-                end_t = time.time()
-                print(new_order_price , "Время: " ,  end_t - str_t)
+                self.new_order_price = template_finder.find_number_003(self.driver_manager.driver , regionX=718 , regionY=66 , 
+                                                                 regionW=82, regionH=16,regionPrice=(regionPriceAll[0],regionPriceAll[1]))
+                if self.new_order_price is not None:
+                    if self.old_order_price is not None and self.old_order_price < self.new_order_price:
+                        print('новая цена cтавлю скин')
+                        self.price_first_skin = template_finder.find_number_003(self.driver_manager.driver , regionX=746 , regionY=188 , 
+                                                                     regionW=56, regionH=28, regionPrice=(regionPriceAll[0],regionPriceAll[1]))
+                        if self.price_first_skin is not None:
+                            print("цена первого выставленного скина: " , self.price_first_skin)
+                            self.create_order()
+
+                        else:
+                            print('не удалось определить цену последнего скина')
+                            self.old_order_price = self.new_order_price
+
+                    else:
+                        print('цена старая')
+                        self.old_order_price = self.new_order_price
+
+                    
+                    end_t = time.time()
+                    print(self.new_order_price , "Время: " ,  end_t - str_t , "попатка: " , self.attempts)
+                    
+                    if self.attempts > attempts_search:
+                        self.update_list_skin()
+                    
+                    self.attempts += 1
+
+                else:
+                    print('Не нашел цену скина , пробьуем варианты')
+                    if self.open_create_order_panel():
+                        pass
+                    else:
+                        return False
+
+
             except Exception as e:
                 print(f"❌ Ошибка при получении цены: {e}")
                 session_manager.reconnect_to_session(e)
                 return self.test()
+
+    def test(self):
+        print('тест')
+
+    def create_order(self):
+        st_t = time.time()
+        from selenium.common.exceptions import StaleElementReferenceException
+        CleanOrder = None
+        LastBuyButton = None
+        try:
+            me_order_buy = self.new_order_price + (random.randint(3, 7) / 100)
+
+            # ПРОВЕРКА МОЖНО ЛИ ВЫСТАВИТ ЬСКИН ЕСЛИ ЦЕНА ПОСЛЕДНЕГО СКИНА БОЛЬШЕ НАЙШЕЙ НЕТ
+            if me_order_buy >= self.price_first_skin - 0.05:
+                print(f"НЕ КУПИЛ - НАША ЦЕНА БОЛЬШЕ ВЫСТАВЛЕННОГО СКИНА, наша цена: {me_order_buy} , цена последнего скина: {self.price_first_skin}")
+            else:
+
+                self.price_field.send_keys(me_order_buy)
+                
+                click_action.random_click(self.driver_manager.driver, self.cords_finnly_create_order)
+                LastBuyButton = True
+                ed_t = time.time()
+
+                print('выставил СКИН ЗА: ' , me_order_buy , "время: " , ed_t - st_t)
+                
+
+                time.sleep(1)
+                CleanOrder = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/CleanOrder.png", threshold=0.9)
+                if CleanOrder:
+                    pass
+                else:
+                    print('ЧТОТО СЛОВИЛИ')
+                    time.sleep(600)
+                print('Отменяю запрос')
+                self.old_order_price = self.new_order_price
+
+        except StaleElementReferenceException as e:
+            # Специфичная ошибка - поле пропало из DOM
+            print("⚠️ Поле ввода пропало, пересоздаю...")
+            self.price_field = self.select_price_field()
+            self.price_field.clear()
+            self.create_order()
+
+        except Exception as e:
+            # Все остальные ошибки
+            print(f"❌ Ошибка при создании заказа: {e}")
+            session_manager.reconnect_to_session(e)
+            if LastBuyButton and CleanOrder is None:
+                CleanOrder = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/CleanOrder.png", threshold=0.9)
+                print('Отменяю запрос')
+            self.old_order_price = self.new_order_price
+
+                
+        
+    def open_create_order_panel(self):
+        """Нажимае кнопку ЗАКАЗАТЬ и открываем поле ввода"""
+        try:
+            
+            requestPrice = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/request.png", threshold=0.9)
+            print('НАЖАЛ ЗАКАЗАТЬ ДЛЯ ВВОДА ЦЕНЫ')
+            time.sleep(0.5)
+            if requestPrice:
+                self.price_field = self.select_price_field()
+                self.price_field.clear()
+
+                if self.cords_finnly_create_order is None:
+                    self.cords_finnly_create_order = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/BuyFinnuly.png", 
+                                                     threshold=0.95,regionX=230,regionY=302,regionW=502,regionH=120 , click=False)
+                return True
+            else:
+                self.driver_manager.driver.back()
+                return False
+
+        except Exception as e:
+            print(f"❌ Ошибка при открытии меню заказать: {e}")
+            session_manager.reconnect_to_session(e)
+            return self.open_create_order_panel()
+        
+    def update_list_skin(self, count_tap=2, MeOrdersButton=None):
+        """Обновляет списмок выставленных скинов , нажимкает мои запросы 2 раза"""
+        try:
+            CloseButton = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/CloseButton.png", threshold=0.9)
+            time.sleep(random.randint(50,250) / 100)
+            for _ in range(count_tap):
+                if MeOrdersButton:
+                    click_action.random_click(self.driver_manager.driver, MeOrdersButton,max_offset=3)
+                    count_tap -= 1
+                else:
+                    MeOrdersButton = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/MeOrders.png", threshold=0.9)
+            self.attempts = 0
+        except Exception as e:
+            print(f"❌ Ошибка при обновлении выставленных скинов: {e}")
+            session_manager.reconnect_to_session(e)
+            return self.update_list_skin(count_tap=count_tap , MeOrdersButton=MeOrdersButton)
+
+    def select_price_field(self):
+        """Получаем поле ввода цены"""
+        #Нажатие заказать и поля ввода что бы после изменения цуены сразу отправил прайс
+        try:
+            selectCount = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/selectCount.png", threshold=0.9 ,click=False)
+            if selectCount:  
+                click_action.random_click(self.driver_manager.driver, selectCount, max_offset=7 , offsetN_x=200 , offsetN_y=-40)
+                PriceFill = WebDriverWait(self.driver_manager.driver, 5).until(
+                        EC.presence_of_all_elements_located((AppiumBy.CLASS_NAME, 'android.widget.EditText')))
+                if PriceFill:
+                    return PriceFill[0]
+                else:
+                    return None
+            else:
+                print('Не нашел поле ввода цены')
+                return None
+        except Exception as e:
+            print(f"❌ Ошибка при получении поля ввода цены: {e}")
+            session_manager.reconnect_to_session(e)
+            return self.select_price_field()

@@ -113,12 +113,12 @@ def get_full_info_account(account_id):
 
         
 def sell_random_skins(account_id):
-    skins = data.execute_query("""SELECT s.id , s.url , s.name , s.sell_price FROM account_skins ask
+    skins = data.execute_query("""SELECT s.id , s.url , s.name , s.sell_price , s.sell_global_price FROM account_skins ask
         JOIN skins s ON s.id = ask.skin_id
         WHERE ask.account_id = %s and ask.is_sale = true""", params=(account_id,), fetch_all=True)
     skin = random.choice(skins)
     trade.open_need_skin(skin['url'] , skin['name'])
-    selling_count =trade.sell_skin(skin['sell_price'], skin['url'] , random.randint(80, 140))
+    selling_count =trade.sell_skin(skin['sell_global_price'], skin['url'] , random.randint(80, 140))
     data.execute_query('UPDATE account_skins SET last_sell = NOW() , sell_count = sell_count + %s WHERE skin_id = %s and account_id = %s' , params=(selling_count, skin['id'], account_id,))
 
 
@@ -191,12 +191,33 @@ def buy_action(account_id, actions = 'Тест функций' , gold_check = Tr
 
 
 def test(nox_id):
+    # skin_data = data.execute_query("""
+    #     SELECT s.id, s.name, s.sell_global_price, s.url, s.buy_price, 
+    #            s.min_buy, s.max_buy, s.interval_minutes, s.rarity, 
+    #            s.sell_price, ask.count
+    #     FROM account_skins ask
+    #     JOIN skins s ON ask.skin_id = s.id
+    #     WHERE ask.last_buy < NOW() - (s.interval_minutes || 'minutes')::INTERVAL 
+    #       AND ask.account_id = %s AND ask.is_buy = true
+    # """, params=(account_id,), fetch_one=True)
+    # skin = Skin.from_db_row(skin_data)
+    # trade.open_need_skin(skin.url , skin.name)
+
     print('тест')
     from config.appium_config import capability_me , appium_config
     capability_me = appium_config.get_capabilities(nox_id)
 
-    from services.traiding_services import TraidingServices
-    trade = TraidingServices()
+    from services.traiding_services import TraidingServices , HuckPrice003
+    trade = HuckPrice003()
 
-    trade.test()
+    while True:
+        # error = trade.test(regionPriceAll=(3,8))
+        result = trade.main_huck(regionPriceAll=(40,70),attempts_search=150)
+        if result is False:
+            print('либо краш либо какая то ошибка')
+            break
+        # if error:
+        #     print('пробую открыть скин')
+            #trade.open_need_skin(skin.url , skin.name)
 
+# test(21)

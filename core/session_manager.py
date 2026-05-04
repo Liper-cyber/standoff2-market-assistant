@@ -44,10 +44,6 @@ class SessionManager:
             return False
         return self.port_manager.kill_process_on_port(port)
 
-    def _reset_driver_ports(self):
-        self.driver_manager.config.system_port = None
-        self.driver_manager.config.local_port_appium = None
-
 
     def _is_anr_dialog_present(self) -> bool:
         """Проверяет, появилось ли окно 'Приложение не отвечает'"""
@@ -106,7 +102,6 @@ class SessionManager:
             self.kill_uiautomator_on_device()
             self._kill_port_if_set(self.driver_manager.config.system_port)
             self._kill_port_if_set(self.driver_manager.config.local_port_appium)
-            self._reset_driver_ports()
             driver_manager.appium_process = None
             driver_manager.driver = None
             
