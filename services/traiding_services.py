@@ -1,4 +1,5 @@
 import pytesseract
+from config.configall import PYTERRACT_PATH
 
 from actions import template_finder
 
@@ -20,10 +21,12 @@ ZAPROS = [286, 112, 196, 16] # текст вашзапрос на покупку
 OK_FIELD = [950, 530] # Кнопка ОКЕЙ  в полле ввода цены
 TAP_SKIN = [277 , 125] # Координаты Скина при выбори продажи
 GOLD_BALANCE = [770, 0, 192, 50] # Координаты для получения баланса
+REGION_CHECK_NAKL = [220, 184 , 180 , 120] #П Регион проверки найклеек
 
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+pytesseract.pytesseract.tesseract_cmd = PYTERRACT_PATH
 
 session_manager = SessionManager()
+
 class TraidingServices:
     def __init__(self):
         self.driver_manager = driver_manager
@@ -62,9 +65,9 @@ class TraidingServices:
                     EC.presence_of_all_elements_located((AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("ОК")')))
                 OK_Button[0].click()
                 time.sleep(0.3)
-                ApplyFilterSkin = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/applySkinFilter.png", threshold=0.9)
+                ApplyFilterSkin = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/applySkinFilter.png", threshold=0.9, name = "кнопка применить")
                 time.sleep(1)
-                Skin = template_finder.find_item_region(self.driver_manager.driver, f"./img/skins/{skin_url}.png", threshold=0.9)
+                Skin = template_finder.find_item_region(self.driver_manager.driver, f"./img/skins/{skin_url}.png", threshold=0.9 , name=f'Скин {skin_url}')
                 time.sleep(1)
                 return True
             else:
@@ -75,17 +78,20 @@ class TraidingServices:
             self.driver_manager.driver.back()
             self.open_need_skin(skin_url, skin_name)
 
-    def buy_skin(self, buy_price):
+    def buy_skin(self, buy_price) -> True | Count_skins:
         """Вернет True если покупка успешн или количество скинов запросе"""
         try:
             checkBuy = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/CheckBuySkin.png", threshold=0.95 ,click=False)
             if checkBuy is not False:
+                # Если запрос есть то проверяем сколько там еще скинов на покупки
                 numbers = template_finder.parse_quantity_from_text(self.driver_manager.driver , ZAPROS[0] , ZAPROS[1] , ZAPROS[2] , ZAPROS[3])
                 if numbers is None: 
                     numbers = 1 
                     print(int(numbers) , "ПРОВЕРКА КОЛ-ВА ЗАПРОСОВ")
                     return numbers
                 else:
+                    # есть баг распознавания колическво запроса никак не может быть более 100 , 
+                    # обычно распаознает 560 это 56 , дорисовывет 0 почему то
                     if int(numbers) > 100:
                         numbers = int(numbers) // 10
                         print(int(numbers) , "ПРОВЕРКА КОЛ-ВА ЗАПРОСОВ")
@@ -126,11 +132,11 @@ class TraidingServices:
             return self.buy_skin(buy_price)
     
 
-    def sell_skin(self, sell_price, url_check_nackl, count , checkNakl=True):
-        sellSkin = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/sellSkin.png", threshold=0.9)
+    def sell_skin(self, sell_price, url_check_nackl, count , checkNakl=True , wait_for_sell=3):
+        sellSkin = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/sellSkin.png", threshold=0.9 , name='Кнопка продажди')
         click_action.random_click(self.driver_manager.driver, (TAP_SKIN[0], TAP_SKIN[1]), max_offset=5)
-        selectedSkin = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/selectedSkin.png", threshold=0.9)
-        selectedPriceSkin = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/selectedPriceMeSkin.png", threshold=0.9)
+        selectedSkin = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/selectedSkin.png", threshold=0.9, name = 'Кновка выбрать')
+        selectedPriceSkin = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/selectedPriceMeSkin.png", threshold=0.9 , name = 'Введите цены')
 
         if selectedPriceSkin is not False:
             click_action.random_click(self.driver_manager.driver, selectedPriceSkin, max_offset=4, offsetN_x=230)
@@ -139,8 +145,8 @@ class TraidingServices:
         if checkNakl:
                     CheckNackl = template_finder.find_item_region(
                         self.driver_manager.driver, f"./img/skins/{url_check_nackl}CheckNackl.png",
-                        regionX=180, regionY=132, regionW=400, regionH=228,
-                        threshold=0.99, click=False
+                        regionX=REGION_CHECK_NAKL[0], regionY=REGION_CHECK_NAKL[1], regionW=REGION_CHECK_NAKL[2], regionH=REGION_CHECK_NAKL[3],
+                        threshold=0.99, click=False , name='Проверка наклейки'
                     )
 
                     if CheckNackl is False: price = '222.54'
@@ -169,16 +175,16 @@ class TraidingServices:
             price = str(sell_price)
             try:
                 click_action.random_click(self.driver_manager.driver, sellSkin)
-                time.sleep(random.randint(10 , 20) / 100)
+                time.sleep(random.randint(10 , 20) / (wait_for_sell * 100))
                 click_action.random_click(self.driver_manager.driver, (277, 125), max_offset=12)
                 click_action.random_click(self.driver_manager.driver, selectedSkin)
-                time.sleep(random.randint(10 , 35) / 100)
+                time.sleep(random.randint(10 , 35) / (wait_for_sell * 100))
 
                 if checkNakl:
                     CheckNackl = template_finder.find_item_region(
                         self.driver_manager.driver, f"./img/skins/{url_check_nackl}CheckNackl.png",
                         regionX=180, regionY=132, regionW=400, regionH=228,
-                        threshold=0.99, click=False
+                        threshold=0.99, click=False , name=f'Проверка наклееки {url_check_nackl}'
                     )
 
                     if CheckNackl is False: price = '222.54'
@@ -194,7 +200,7 @@ class TraidingServices:
                     click_action.random_click(self.driver_manager.driver, (OK_FIELD[0], OK_FIELD[1]))
 
                 click_action.random_click(self.driver_manager.driver, createdLotSkin)
-                time.sleep(random.randint(50 , 85) / 100)
+                time.sleep(random.randint(50 , 85) / (wait_for_sell * 100))
                 now_count += 1
 
             except Exception as e:
@@ -222,7 +228,7 @@ class TraidingServices:
             if gold_icon is False:
                 print("❌ Иконка золота не найдена")
                 driver_manager.driver.back()
-                return self.get_gold_balance()
+                return False
             print(gold_icon)
             gold_balance = template_finder.find_number_on_screen(self.driver_manager.driver, regionX=gold_icon[0]+10, 
                                                            regionY=gold_icon[1]-20, regionW=200, regionH=40)
@@ -232,8 +238,14 @@ class TraidingServices:
             session_manager.reconnect_to_session(e)
             return self.get_gold_balance()
     
-    
-            
+    def test(self):
+        try:
+            shop = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/shop.png", threshold=0.9)
+            print('нажал ШОП')
+            time.sleep(3)
+            session_manager.kill_uiautomator_on_device()
+        except Exception as e:
+            session_manager.reconnect_to_session('asf')
         
 
 

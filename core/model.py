@@ -1,4 +1,4 @@
-# models.py
+ # models.py
 from dataclasses import dataclass
 from decimal import Decimal
 from datetime import datetime
@@ -120,10 +120,11 @@ class AccountSkin:
     last_sell: Optional[datetime]
     count: int
     sell_count: int
-    wait_attempts: int
+    wait_attempts: int # попыток поставить запрос
     is_buy: bool
     is_sale: bool
-    fast_order: int
+    fast_order: int # количесво выполненых запросов без доп wait_attemts , если за 10 минут запрос завершился значит у скина сменилась цена
+    
 
     
     @classmethod

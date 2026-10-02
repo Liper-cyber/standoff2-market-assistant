@@ -20,12 +20,6 @@ ENV/
 *.env
 *.env.local
 
-# Images (если не хочешь хранить в репозитории)
-img/
-*.png
-*.jpg
-*.jpeg
-*.gif
 
 # Database
 pgsql/

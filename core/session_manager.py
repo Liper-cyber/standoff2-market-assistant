@@ -1,18 +1,18 @@
 # core/session_manager.py
 import time
+from config.configall import PATH_EMULATOR_ADB , VM_NAME
 from config.appium_config import appium_config
 from core.port_manager import PortManager
 from actions import template_finder
 from core.driver_manager import driver_manager
 import subprocess
 
-ADB_PATH = r"B:\Nox\bin\adb.exe" # путь adb
-
 
 class SessionManager:
     """Управление сессией Appium и переподключениями"""
     
     def __init__(self):
+        self.attempts_error = 0
         self.driver_manager = driver_manager
         self.port_manager = PortManager()
         self.timeerror = None
@@ -28,13 +28,13 @@ class SessionManager:
                 ['shell', 'am', 'force-stop', 'io.appium.uiautomator2.server.test'],
             ]
             for cmd in commands:
-                full_cmd = [ADB_PATH, '-s', f'127.0.0.1:{self.UID_devices}'] + cmd
+                full_cmd = [PATH_EMULATOR_ADB, '-s', f'{VM_NAME}{self.UID_devices}'] + cmd
                 subprocess.run(full_cmd, capture_output=True, timeout=5)
             
-            print(f"🔪 uiautomator2 убит на устройстве 127.0.0.1:{self.UID_devices}")
+            print(f"🔪 uiautomator2 убит на устройстве {VM_NAME}{self.UID_devices}")
 
         except FileNotFoundError:
-            print(f"❌ Не найден adb.exe по пути: {ADB_PATH}")
+            print(f"❌ Не найден adb.exe по пути: {PATH_EMULATOR_ADB}")
         except Exception as e:
             print(f"⚠️ Не удалось убить uiautomator на устройстве: {e}")
 
@@ -49,7 +49,7 @@ class SessionManager:
         """Проверяет, появилось ли окно 'Приложение не отвечает'"""
         try:
             result = subprocess.run(
-                [ADB_PATH, '-s', f'127.0.0.1:{self.UID_devices}', 'shell', 'dumpsys', 'window'],
+                [PATH_EMULATOR_ADB, '-s', f'{VM_NAME}{self.UID_devices}', 'shell', 'dumpsys', 'window'],
                 capture_output=True,
                 text=True,
                 timeout=6,
@@ -77,17 +77,70 @@ class SessionManager:
             print(f"⚠️ Ошибка при проверке ANR: {e}")
             return False
         
+
     def _reconnect_application(self):
-        print('рекконект запускаю')
-        driver_manager.driver.activate_app('com.axlebolt.standoff2')
-        time.sleep(100)
-        LoginGoogle = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/LoginGoogle.png", threshold=0.7)
-        time.sleep(60)
+        """Перезапуск приложения"""
+        try:
+            print('🔄 Перезапускаю игру (force-stop + start)')
+            self.attempts_error = 0
+
+            # Проверяем, существует ли driver
+            if driver_manager.driver is None:
+                print("⚠️ Driver не инициализирован, запускаю заново")
+                driver_manager.start_driver()
+                time.sleep(10)
+
+            # Закрываем игру
+            try:
+                driver_manager.driver.terminate_app('com.axlebolt.standoff2')
+                print("✅ Игра остановлена")
+                time.sleep(3)
+            except Exception as e:
+                print(f"⚠️ Ошибка при terminate_app: {e}")
+                # Альтернативный способ через ADB
+                try:
+                    subprocess.run([PATH_EMULATOR_ADB, '-s', f'{VM_NAME}{self.UID_devices}', 
+                                  'shell', 'am', 'force-stop', 'com.axlebolt.standoff2'], 
+                                  capture_output=True, timeout=5)
+                    print("✅ Игра остановлена через ADB")
+                    time.sleep(3)
+                except Exception as adb_e:
+                    print(f"❌ Не удалось остановить игру: {adb_e}")
+
+            # Запускаем игру
+            try:
+                driver_manager.driver.activate_app('com.axlebolt.standoff2')
+                print("✅ Игра запущена")
+            except Exception as e:
+                print(f"⚠️ Ошибка при activate_app: {e}")
+                # Пробуем через ADB
+                subprocess.run([PATH_EMULATOR_ADB, '-s', f'{VM_NAME}{self.UID_devices}', 
+                              'shell', 'monkey', '-p', 'com.axlebolt.standoff2', '-c', 
+                              'android.intent.category.LAUNCHER', '1'], 
+                              capture_output=True, timeout=5)
+                print("✅ Игра запущена через ADB")
+                
+            time.sleep(70)
+            # Проверяем наличие окна входа в Google
+            try:
+                LoginGoogle = template_finder.find_item_region(driver_manager.driver, 
+                                                              "./img/interfeces/LoginGoogle.png", 
+                                                              threshold=0.7)
+                time.sleep(100)
+            except Exception as e:
+                print(f"⚠️ Не удалось проверить окно входа: {e}")
+
+        except Exception as e:
+            print(f"❌ Ошибка в _reconnect_application: {e}")
+            raise
 
 
     def reconnect_to_session(self, error_msg=None):
         error_msg = str(error_msg or "")
-        
+        self.attempts_error += 1
+        print('ошибок ' , self.attempts_error )
+        if self.attempts_error > 30 + 1:
+            self._reconnect_application()
         # Случай 1: Проблемы с UiAutomator2 сервером
         if "instrumentation process is not running" in error_msg or \
         "cannot be proxied to UiAutomator2 server" in error_msg:
@@ -151,10 +204,12 @@ class SessionManager:
                 self.kill_uiautomator_on_device()
                 self._kill_port_if_set(self.driver_manager.config.system_port)
                 self._kill_port_if_set(self.driver_manager.config.local_port_appium)
-                self._reset_driver_ports()
                 driver_manager.appium_process = None
                 driver_manager.driver = None
                 
                 driver_manager.start_driver()
                 
                 return False
+
+
+        

@@ -14,7 +14,7 @@ WINDOWSCALE = (1400, 1240)
 
 #ДЛЯ ФОТОК
 SKIN_FULL = [238, 58 , 172 , 112]
-SKIN_NACKLE = [260 , 260 , 132 , 44]
+SKIN_NACKLE = [230 , 240 , 160 , 60]
 AVATARS_REGION = [288, 178 , 36 , 284]
 
 
@@ -85,8 +85,8 @@ class MenuApp:
         self.id_devices = tk.StringVar(value="1")
         self.photo_x_var = tk.StringVar(value="0")
         self.photo_y_var = tk.StringVar(value="0")
-        self.photo_w_var = tk.StringVar(value="540")
-        self.photo_h_var = tk.StringVar(value="960")
+        self.photo_w_var = tk.StringVar(value="960")
+        self.photo_h_var = tk.StringVar(value="540")
         self.photo_path_var = tk.StringVar(value="./img/screenshots/region.png")
         self.photo_driver = None
         self.photo_driver_manager = None
@@ -187,7 +187,6 @@ class MenuApp:
         from dotenv import load_dotenv
         load_dotenv()
         """Подключение к устройству через Appium"""
-        os.environ['DEVICE_UDID'] = str(self.id_devices.get())
         try:
             self.photo_status_var.set("Подключение к устройству...")
             self.root.update()

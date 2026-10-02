@@ -47,7 +47,7 @@ reader = TemplateFinder().get_reader()
 
 def find_item_region(driver, template_path, regionX = 0, regionY = 0, 
                                    regionW = DevicesConfig().weidth, regionH = DevicesConfig().height, 
-                                   threshold=0.5 , click = True):
+                                   threshold=0.5 , click = True , name = 'Имя'):
     """
     Ищет шаблон в указанной области с помощью OpenCV
     если ничего не нашел возвращает false , если нашел возвращает элемент в паняти который хранит X Y Ширину Длину
@@ -80,7 +80,7 @@ def find_item_region(driver, template_path, regionX = 0, regionY = 0,
         template_x = regionX + max_loc[0]
         template_y = regionY + max_loc[1]
         
-        print(f"✅ Шаблон {template_path} найден в области! Координаты: ({template_x}, {template_y})")
+        print(f"✅ Шаблон {name} , путь: {template_path} найден в области! Координаты: ({template_x}, {template_y})")
         
         # Возвращаем "виртуальный" элемент
         class VirtualElement:
@@ -104,7 +104,7 @@ def find_item_region(driver, template_path, regionX = 0, regionY = 0,
         
         return (location_center_x,location_center_y)
     
-    print("❌ Шаблон не найден в области")
+    print(f"❌ Шаблон {name} не найден в области")
     return False
 
 def find_number_on_screen(driver, regionX, regionY, regionW, regionH):

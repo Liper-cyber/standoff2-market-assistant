@@ -4,6 +4,7 @@ import socket
 from pathlib import Path
 from dotenv import load_dotenv
 from core.port_manager import PortManager
+from config.configall import START_PORT_VM
 
 load_dotenv()
 
@@ -27,19 +28,18 @@ class AppiumConfig:
     def get_capabilities(self,  nox_id=1):
         
         """Возвращает capabilities для Appium драйвера"""
-        self.device_udid_port = nox_id
+        self.device_udid_port = int(nox_id)
         if not self.system_port:
             self.system_port = PortManager.get_free_port(8200 , 9200)
         if not self.local_port_appium:
             self.local_port_appium = PortManager.get_free_port(6000 , 7000)
 
-        standart_port = 62024
-        self.devices_port = int(self.device_udid_port) + standart_port
+        self.devices_port = int(self.device_udid_port * 2) + START_PORT_VM 
         print('КАПАБИЛИТИ НОКС АЙДИ: ' , nox_id , self.devices_port)
         capabilities = {
             "platformName": "Android",
             "appium:deviceName":'Nox',
-            "appium:udid": f"127.0.0.1:{self.devices_port}",
+            "appium:udid": f"emulator-{self.devices_port}", # NOX менять на 127.0.0.1:
             "appium:automationName": "UiAutomator2",
             "newCommandTimeout": 300,
             "uiautomator2ServerLaunchTimeout": 60000,
@@ -63,7 +63,7 @@ class AppiumConfig:
         print("📱 Appium Конфигурация:")
         print(f"  Appium Server port: {self.local_port_appium}")
         print(f"  System Port: {self.system_port}")
-        print(f"  Device UDID: 127.0.0.1:{self.devices_port}")
+        print(f"  Device UDID: emulator-{self.devices_port}") # NOX менять на 127.0.0.1:
         print("="*50 + "\n")
 
 appium_config = AppiumConfig()
