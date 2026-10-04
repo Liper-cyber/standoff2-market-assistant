@@ -232,51 +232,45 @@ def test(nox_id):
 # -- Запуск интерфейса --
 
 
-def start_app():
-    import tkinter as tk
-
-    root = tk.Tk()
-    root.title("TollStandoff Manager")
-
-    def interfaces():
-        from TollStandoff.app import MenuApp
-        a = MenuApp(root)
-
-        root.mainloop()
-
-    if __name__ == "__main__":
-        interfaces()
-
-
-def buy_skins():
+def buy_skins(action = None):
     account_id = DatabaseService().execute_query('SELECT id FROM account WHERE nox_devices_id = %s', params=(int(os.getenv('DEVICE_UDID')),) , fetch_one=True)
 
     from dotenv import load_dotenv
     load_dotenv()
+    if action is None:
+        user_select = int(input('Выберите вариант трейдинга\n1: Глобальная продажа - покупает скины и продает скины по глобальной цене(1-2месяца)\n2: Обычная продажа - покупает скины и продает по быстрой цене (1-2дня)\n3: Рандомная продажа - только продает скины , не ставит запросы\n4: Кастомная функция - если вы сделали только провреку чего то\nВаш выбор: '))
+        if user_select == 1:
+            action = 'Продажа по Глобальной цене'
+        elif user_select == 2:
+            action = 'Продажа по обычной цене'
+        elif user_select == 3:
+            action = 'Рандомная продажа'
+        elif user_select == 4:
+            custom_buy(nox_id=int(os.getenv('DEVICE_UDID')))
+            return
+    buy_action(account_id=account_id['id'] , actions=action)
+    return
 
-    buy_action(account_id=account_id['id'] , actions='Продажа по Глобальной цене')
 
-
-def custom_buy(nox_id=2, skin_count_sell=(20,25) ,selling_price='sell_global_price'):
+def custom_buy(account_id=1, skin_count_sell=(20,25) ,selling_price='sell_global_price'):
 
     from config.appium_config import capability_me , appium_config
-    capability_me = appium_config.get_capabilities(nox_id)
+    data = DatabaseService()
+    VM_id = data.execute_query("""SELECT nd.id_nox , nd.proxy_port FROM account a
+                            JOIN nox_devices nd ON nd.id = a.nox_devices_id
+                            WHERE a.id = %s """ , params=(account_id,) ,fetch_one=True)
+    
+    capability_me = appium_config.get_capabilities(VM_id['id_nox'])
+    from actions.template_finder import TemplateFinder , find_count_on_screen , find_number_in_balance , debug_specific_pixels
     from services.traiding_services import TraidingServices
     trade = TraidingServices()
-    data = DatabaseService()
-    skins_sell_row = data.execute_query("""SELECT s.id , s.sell_price ,s.sell_global_price , s.url , s.name FROM account_skins ask 
-                                        JOIN skins s ON s.id = ask.skin_id
-                                        WHERE account_id = %s and last_sell < NOW() - (2 || 'minutes')::INTERVAL and is_sale = true
-                                        """ , fetch_all=True, params=(20,))
-    if not skins_sell_row or len(skins_sell_row) == 0:
-        print("⚠️ Нет скинов для продажи (все скины недавно продавались или их нет)")
-        time.sleep(60)
-        return
-    # выбираем рандомный скин и рандомное количесто на продажу , что бы уменьшить риски бана за бота
-    skin_sell = random.choice(skins_sell_row)
-    trade.open_need_skin(skin_sell['url'] , skin_sell['name'])
-    selling_count = trade.sell_skin(skin_sell[selling_price], skin_sell['url'] , random.randint(*skin_count_sell))
-    data.execute_query('UPDATE account_skins SET last_sell = NOW() , sell_count = sell_count + %s  WHERE skin_id = %s and account_id = %s' , params=(selling_count, skin_sell['id'], account_id,))
+    ZAPROS = [286, 112, 196, 16] # текст вашзапрос на покупку
+    GOLD_BALANCE = [770, 0, 192, 50] # Координаты для получения баланса
 
+    numbers = find_number_in_balance(trade.driver_manager.driver , 851 , 4 , 140 , 40)
+    
 
-custom_buy()
+    
+    
+    
+

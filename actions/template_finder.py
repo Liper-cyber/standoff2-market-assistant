@@ -6,17 +6,16 @@ import time
 from actions import click_action
 import pytesseract
 import easyocr
-
+import re
+from config.configall import MODEL_EasyOCR_PATH
 # Глобальный reader (инициализируем один раз вне функции — важно для производительности!)
 
-
 from config.devices_config import DevicesConfig
-
 
 class TemplateFinder:
     def __init__(self):
         self.reader = None
-        self.model_dir = r"C:\Users\Mjis\.EasyOCR\model"
+        self.model_dir = MODEL_EasyOCR_PATH
 
     def get_reader(self):
         """Возвращает EasyOCR reader. Создаёт новый при каждом вызове."""
@@ -29,8 +28,8 @@ class TemplateFinder:
 
         try:
             self.reader = easyocr.Reader(
-                ['en'],
-                gpu=False,
+                ['en', 'ru'],
+                gpu=True,
                 download_enabled=download_enabled,
                 model_storage_directory=self.model_dir,
                 quantize=False,           # важно для стабильности
@@ -107,86 +106,114 @@ def find_item_region(driver, template_path, regionX = 0, regionY = 0,
     print(f"❌ Шаблон {name} не найден в области")
     return False
 
-def find_number_on_screen(driver, regionX, regionY, regionW, regionH):
-    """
-    Улучшенная версия для распознавания баланса типа "G 1651.25"
-    """
-    print(f"🔍 Ищем число в области: X={regionX}, Y={regionY}, W={regionW}, H={regionH}")
-    
+# --- Ваши RGB-диапазоны ---
+# Текст (оставить): светло-жёлтый
+TEXT_RGB_LOWER = (196, 153, 92)
+TEXT_RGB_UPPER = (215, 172, 115)
+
+# Исключение (убрать): жёлто-зелёный шум
+EXCL_RGB_LOWER = (171, 164, 18)
+EXCL_RGB_UPPER = (177, 156, 18)
+
+
+def rgb_to_hsv_opencv(rgb):
+    """Конвертирует RGB-кортеж в HSV OpenCV (H 0..179)."""
+    arr = np.uint8([[rgb]])                       # RGB
+    bgr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
+    hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
+    return tuple(int(x) for x in hsv[0][0])
+
+
+def find_number_in_balance(driver, regionX, regionY, regionW, regionH):
+    """Распознает баланс голды"""
+    print(f"🔍 Распознаем баланс в области: X={regionX}, Y={regionY}, W={regionW}, H={regionH}")
+
     try:
+        # 1. Скриншот + обрезка
         screenshot = driver.get_screenshot_as_png()
         screenshot_img = Image.open(io.BytesIO(screenshot))
-        
-        # Обрезаем нужную область
-        search_region = screenshot_img.crop((regionX, regionY, regionX + regionW, regionY + regionH))
-        img_cv = cv2.cvtColor(np.array(search_region), cv2.COLOR_RGB2BGR)
-        
-        gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+        search_region = screenshot_img.crop(
+            (regionX, regionY, regionX + regionW, regionY + regionH)
+        )
+        img_bgr = cv2.cvtColor(np.array(search_region), cv2.COLOR_RGB2BGR)
 
-        # === Предобработка специально под низкий контраст жёлтого текста ===
-        # Усиливаем контраст именно в диапазоне текста
-        clahe = cv2.createCLAHE(clipLimit=5.0, tileGridSize=(8, 8))
-        enhanced = clahe.apply(gray)
+        # 2. HSV
+        hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
 
-        # Дополнительно повышаем яркость и контраст через gamma
-        gamma = 0.5                    # чем меньше — тем ярче становятся средние тона
-        inv_gamma = 1.0 / gamma
-        table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in np.arange(0, 256)]).astype("uint8")
-        enhanced = cv2.LUT(enhanced, table)
+        # 3. Основная маска — ТЕКСТ (светло-жёлтый)
+        lower_text = np.array([15,  80, 190], dtype=np.uint8)
+        upper_text = np.array([35, 180, 255], dtype=np.uint8)
+        mask_text = cv2.inRange(hsv, lower_text, upper_text)
 
-        # Бинаризация (пытаемся отделить текст от фона)
-        _, binary = cv2.threshold(enhanced, 110, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        
-        # Увеличение изображения
-        enlarged = cv2.resize(binary, None, fx=2.8, fy=2.8, interpolation=cv2.INTER_CUBIC)
+        # 4. Маска-исключение — конвертируем ваши RGB в HSV
+        hsv_excl_lower = rgb_to_hsv_opencv(EXCL_RGB_LOWER)
+        hsv_excl_upper = rgb_to_hsv_opencv(EXCL_RGB_UPPER)
 
-        # Финальное сглаживание
-        final_img = cv2.GaussianBlur(enlarged, (3, 3), 0)
+        # Берём min/max по каждому каналу — на случай если порядок H "перевернулся"
+        H_lo, S_lo, V_lo = hsv_excl_lower
+        H_hi, S_hi, V_hi = hsv_excl_upper
 
-        # === EasyOCR ===
+        # Запас ±5 по каждому каналу, чтобы наверняка захватить шум
+        lower_excl = np.array([
+            max(0,   min(H_lo, H_hi) - 5),
+            max(0,   min(S_lo, S_hi) - 20),
+            max(0,   min(V_lo, V_hi) - 20),
+        ], dtype=np.uint8)
+        upper_excl = np.array([
+            min(179, max(H_lo, H_hi) + 5),
+            min(255, max(S_lo, S_hi) + 20),
+            min(255, max(V_lo, V_hi) + 20),
+        ], dtype=np.uint8)
+
+        mask_excl = cv2.inRange(hsv, lower_excl, upper_excl)
+
+        # 5. Итог: текст МИНУС исключение
+        mask_final = cv2.bitwise_and(mask_text, cv2.bitwise_not(mask_excl))
+
+        # 7. Инверсия: EasyOCR ждёт ЧЁРНЫЙ текст на БЕЛОМ
+        mask_final = cv2.bitwise_not(mask_text)
+
+        # 8. Увеличение
+        final_img = cv2.resize(mask_final, None, fx=3.0, fy=3.0,
+                               interpolation=cv2.INTER_CUBIC)
+
+        # 9. Отладка
+        cv2.imwrite("debug_01_original.png", img_bgr)
+        cv2.imwrite("debug_final.png", final_img)
+
+        # 10. Проверка, что текст остался
+        black_ratio = (final_img == 0).sum() / final_img.size
+        if black_ratio < 0.005:
+            print("⚠️ В маске почти нет текста — ослабьте исключение или расширьте текст")
+            return None
+
+        # 11. EasyOCR
         results = reader.readtext(
             final_img,
             detail=1,
             paragraph=False,
-            allowlist='0123456789.G',
-            text_threshold=0.6,
-            low_text=0.35,
-            height_ths=0.7,
-            width_ths=0.85,
-            min_size=10,
-            contrast_ths=0.1,
-            adjust_contrast=0.8
+            text_threshold=0.4,
+            low_text=0.3,
         )
+
+        for (bbox, text, prob) in results:
+            print(f"   -> {text!r} (prob={prob:.3f})")
 
         if not results:
             print("❌ Ничего не найдено")
             return None
 
-        cv2.imwrite(f"debug_01_original.png", img_cv) 
-        cv2.imwrite(f"debug_final.png", final_img)
+        # 12. Извлекаем число
+        full_text = ' '.join(text for (_, text, prob) in results if prob > 0.3)
 
-        texts = []
-        for (bbox, text, prob) in results:
-            if prob < 0.5:
-                continue
-            cleaned = ''.join(c for c in text if c.isdigit() or c == '.')
-            if cleaned:
-                texts.append((cleaned, prob))
-
-        if not texts:
-            print("❌ После очистки ничего не осталось")
+        match = re.search(r'\d+(?:[.,]\d+)?', full_text)
+        if not match:
+            print("❌ Число не найдено")
             return None
 
-        best_text, best_prob = max(texts, key=lambda x: x[1])
-        final = ''.join(c for c in best_text if c.isdigit() or c == '.')
-
-        try:
-            value = float(final)
-            print(f"✅ EasyOCR: '{best_text}' (conf: {best_prob:.3f}) → {value}")
-            return value
-        except:
-            print(f"⚠️ Не удалось конвертировать: {final}")
-            return None
+        value = float(match.group().replace(',', '.'))
+        print(f"✅ Найдено число: {value}")
+        return value
 
     except Exception as e:
         print(f"❌ Ошибка: {e}")
@@ -195,7 +222,64 @@ def find_number_on_screen(driver, regionX, regionY, regionW, regionH):
         return None
     
 
-import re
+def find_count_on_screen(driver, regionX, regionY, regionW, regionH):
+    print(f"🔍 Ищем число в области: X={regionX}, Y={regionY}, W={regionW}, H={regionH}")
+    try:
+        screenshot = driver.get_screenshot_as_png()
+        screenshot_img = Image.open(io.BytesIO(screenshot))
+        search_region = screenshot_img.crop((regionX, regionY, regionX + regionW, regionY + regionH))
+        img_cv = cv2.cvtColor(np.array(search_region), cv2.COLOR_RGB2BGR)
+
+        gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+
+        # CLAHE для усиления контраста
+        clahe = cv2.createCLAHE(clipLimit=5.0, tileGridSize=(8, 8))
+        enhanced = clahe.apply(gray)
+
+        # Бинаризация с инверсией: получаем чёрный текст на белом фоне
+        _, binary = cv2.threshold(enhanced, 0, 255,
+                                  cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+        # Увеличение без размытия
+        enlarged = cv2.resize(binary, None, fx=3.0, fy=3.0,
+                              interpolation=cv2.INTER_CUBIC)
+
+        # Сохраняем для отладки ДО OCR
+        cv2.imwrite("debug_final.png", enlarged)
+
+        # OCR без allowlist — вытащим цифры регуляркой
+        results = reader.readtext(
+            enlarged,
+            detail=1,
+            paragraph=False,
+            text_threshold=0.5,
+            low_text=0.3,
+            min_size=10,
+        )
+
+        if not results:
+            print("❌ Ничего не найдено")
+            return None
+
+        # Собираем весь распознанный текст
+        full_text = ' '.join(text for (_, text, prob) in results if prob > 0.3)
+        print(f"📝 Распознано: {full_text!r}")
+
+        # Ищем первое число
+        match = re.search(r'\d+(?:[.,]\d+)?', full_text)
+        if not match:
+            print("❌ Число не найдено в тексте")
+            return None
+
+        value = float(match.group().replace(',', '.'))
+        print(f"✅ Найдено число: {value}")
+        return value
+
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 # в pixels_to_check указать координаты пикселя ,на фигме разсмещаем фотку оригинала и стави пиксель смотри X Y

@@ -8,14 +8,8 @@ from PIL import Image
 from services.database_service import data
 from .ui.cards import ProductCardGrid, AccountCard, AccountSkinCard
 
+from config.configall import SKIN_FULL , SKIN_NACKLE , WINDOWSCALE
 
-#РАЗРЕШЕНГИЕ ДЛЯ ОКНА ПРОГРАММЫ
-WINDOWSCALE = (1400, 1240)
-
-#ДЛЯ ФОТОК
-SKIN_FULL = [238, 58 , 172 , 112]
-SKIN_NACKLE = [230 , 240 , 160 , 60]
-AVATARS_REGION = [288, 178 , 36 , 284]
 
 
 # Путь к скриншоту с аватарками

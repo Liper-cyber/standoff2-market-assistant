@@ -22,6 +22,8 @@ class DevicesManager:
                 self.change_ip_by_3proxy(port=port, adb_serial=adb_serial)
             else:
                 print(f'[!] Устройство {adb_serial} не появилось в ADB за {boot_timeout} сек.')
+        else:
+            print('Запускаю без прокси - Порт не указан')
         
 
     def start_shadowsocks(self, port , path = r'D:\shadowsocks_all'):
@@ -42,12 +44,24 @@ class DevicesManager:
         time.sleep(10)
 
     def change_ip_by_3proxy(self , port , adb_serial):
-        process = subprocess.Popen(
-            f'adb -s emulator-{adb_serial} shell settings put global http_proxy {LOCAL_IP_PC}:{port}',
-            shell=True,
-            cwd=PATH_EMULATOR
-        )
-        print(f'поменял ip у {adb_serial - START_PORT_VM}')
+        import requests
+        try:
+            proxies = {
+                "http":  f"http://{LOCAL_IP_PC}:{port}",
+                "https": f"http://{LOCAL_IP_PC}:{port}",
+            }
+
+            response = requests.get("https://httpbin.org/ip", proxies=proxies, timeout=10)
+            print("Ответ от httpbin.org:", response.json())
+            process = subprocess.Popen(
+                f'adb -s emulator-{adb_serial} shell settings put global http_proxy {LOCAL_IP_PC}:{port}',
+                shell=True,
+                cwd=PATH_EMULATOR
+            )
+            print(f'поменял ip у {adb_serial - START_PORT_VM} на ', port)
+            
+        except requests.exceptions.ProxyError:
+            print(f"Ошибка: Не удалось подключиться к прокси. Проверьте, запущен ли 3proxy на {LOCAL_IP_PC}:{port}")
 
     def wait_for_device(self, adb_serial, timeout=180, poll_interval=2):
         """Ждёт, пока устройство появится в adb devices и будет в статусе device"""

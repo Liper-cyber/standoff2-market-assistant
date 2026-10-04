@@ -333,6 +333,8 @@ class AccountCard:
         self.name = name
         self.email = email
         self.gold = gold
+        self.processes = []
+        
 
         # Основная рамка карточки
         self.card_frame = tk.Frame(
@@ -442,25 +444,60 @@ class AccountCard:
         )
         self.action_button.pack(side=tk.RIGHT)
 
+        self.stop_button = tk.Button(
+            bottom_action_frame,
+            text="■",
+            command=self.stop_actions,
+            bg="#e74c3c",
+            fg="white",
+            activebackground="#c0392b",
+            activeforeground="white",
+            font=("Arial", 10, "bold"),
+            cursor="hand2",
+            width=2,
+            height=1,
+            padx=0,
+            pady=0
+        )
+        self.stop_button.pack(side=tk.RIGHT, padx=(0, 6))
+
     def run_action(self):
         import main
-        
+
         action = self.action_var.get()
-        if action == "Тест функций":          # пример
-            # Для теста можно запускать в том же потоке
-            main.test(self.id_account)
+        if action == "Тест функций":
+            target = main.custom_buy
+            args = (self.id_account,)
         else:
-            
-            # Запускаем в отдельном процессе
-            process = mp.Process(
-                target=main.buy_action,
-                args=(self.id_account, action),   # передаём reader
-                name=f"Account_{self.id_account}"
-            )
-            process.daemon = True
-            process.start()
-            print(f"🚀 Процесс для аккаунта {self.id_account} запущен (PID: {process.pid})")
-            print(f"Запущено действие для аккаунта {self.id_account}: {action}")
+            target = main.buy_action
+            args = (self.id_account, action)
+
+        process = mp.Process(
+            target=target,
+            args=args,
+            name=f"Account_{self.id_account}"
+        )
+        process.daemon = True
+        process.start()
+        self.processes.append(process)
+        print(f"🚀 Процесс для аккаунта {self.id_account} запущен (PID: {process.pid})")
+        print(f"Запущено действие для аккаунта {self.id_account}: {action}")
+
+    def stop_actions(self):
+        stopped_count = 0
+        for process in self.processes:
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=5)
+                if process.is_alive():
+                    process.kill()
+                    process.join()
+                stopped_count += 1
+            else:
+                process.join()
+
+        self.processes.clear()
+        print(f"⏹️ Остановлено процессов для аккаунта {self.id_account}: {stopped_count}")
 
     def select_account(self):
         print(f"Выбран аккаунт: {self.id_account}")

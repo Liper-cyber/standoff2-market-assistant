@@ -84,7 +84,7 @@ class TraidingServices:
             checkBuy = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/CheckBuySkin.png", threshold=0.95 ,click=False)
             if checkBuy is not False:
                 # Если запрос есть то проверяем сколько там еще скинов на покупки
-                numbers = template_finder.parse_quantity_from_text(self.driver_manager.driver , ZAPROS[0] , ZAPROS[1] , ZAPROS[2] , ZAPROS[3])
+                numbers = template_finder.find_number_on_screen(self.driver_manager.driver , ZAPROS[0] , ZAPROS[1] , ZAPROS[2] , ZAPROS[3])
                 if numbers is None: 
                     numbers = 1 
                     print(int(numbers) , "ПРОВЕРКА КОЛ-ВА ЗАПРОСОВ")
@@ -231,7 +231,7 @@ class TraidingServices:
                 return False
             print(gold_icon)
             gold_balance = template_finder.find_number_on_screen(self.driver_manager.driver, regionX=gold_icon[0]+10, 
-                                                           regionY=gold_icon[1]-20, regionW=200, regionH=40)
+                                                           regionY=gold_icon[1]-20, regionW=140, regionH=40)
             return gold_balance
         except Exception as e:
             print(f"❌ Ошибка при получении баланса: {e}")
