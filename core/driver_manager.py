@@ -42,7 +42,7 @@ class DriverManager:
                     print(f"✅ Appium сервер запущен на {self.config.local_port_appium }")
                     return True
             
-            print("❌ Не удалось запустить Appium сервер")
+            print("❌ Не удалось запустить Appium сервер при первом запуске , попробуйсте снова")
             return False
             
         except Exception as e:

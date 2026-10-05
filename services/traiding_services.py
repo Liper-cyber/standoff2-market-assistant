@@ -17,11 +17,10 @@ import time
 import random
 
 
-ZAPROS = [286, 112, 196, 16] # текст вашзапрос на покупку
-OK_FIELD = [950, 530] # Кнопка ОКЕЙ  в полле ввода цены
-TAP_SKIN = [277 , 125] # Координаты Скина при выбори продажи
-GOLD_BALANCE = [770, 0, 192, 50] # Координаты для получения баланса
-REGION_CHECK_NAKL = [220, 184 , 180 , 120] #П Регион проверки найклеек
+ZAPROS = [568, 224, 440, 32] # текст вашзапрос на покупку
+OK_FIELD = [1766, 998] # Кнопка ОКЕЙ  в полле ввода цены
+TAP_SKIN = [548 , 205] # Координаты Скина при выбори продажи
+REGION_CHECK_NAKL = [456, 464 , 352 , 150] #П Регион проверки найклеек
 
 pytesseract.pytesseract.tesseract_cmd = PYTERRACT_PATH
 
@@ -34,10 +33,9 @@ class TraidingServices:
         
     def open_need_skin(self, skin_url , skin_name , attempts=0):
         max_attempts = 3
-        print('начал опен скин')
+        print('начал опен скин' , skin_name)
         try:
-            shop = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/shop.png", threshold=0.9)
-            print('нажал ШОП') 
+            shop = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/shop.png", threshold=0.9, name = 'Кнопка Shop')
             if shop is False:
                 self.driver_manager.driver.back()
                 if attempts < max_attempts:
@@ -47,11 +45,9 @@ class TraidingServices:
                     return self.open_need_skin(skin_url , skin_name , attempts=0)
 
             time.sleep(1)
-            filter = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/filter.png", threshold=0.9)
-            print('нажал ФИЛЬТРЫ')
+            filter = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/filter.png", threshold=0.9, name = 'кнопка Filter')
             time.sleep(1)
-            searchFilter = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/searchNameSkinFilter.png", threshold=0.9)
-            print('нажал СЕРЧ')
+            searchFilter = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/searchNameSkinFilter.png", threshold=0.9 , name='Поле ввода названия скина')
             time.sleep(1)
             searchFilterFill = WebDriverWait(self.driver_manager.driver, 5).until(
                     EC.presence_of_all_elements_located((AppiumBy.CLASS_NAME, 'android.widget.EditText')))
@@ -60,7 +56,7 @@ class TraidingServices:
                 searchFilterFill[0].clear()
 
                 searchFilterFill[0].send_keys(skin_name)
-                print("✅ Текст введен успешно")
+                print(f"✅ Текст {skin_name} введен успешно")
                 OK_Button = WebDriverWait(self.driver_manager.driver, 5).until(
                     EC.presence_of_all_elements_located((AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("ОК")')))
                 OK_Button[0].click()
@@ -81,10 +77,10 @@ class TraidingServices:
     def buy_skin(self, buy_price) -> True | Count_skins:
         """Вернет True если покупка успешн или количество скинов запросе"""
         try:
-            checkBuy = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/CheckBuySkin.png", threshold=0.95 ,click=False)
+            checkBuy = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/CheckBuySkin.png", threshold=0.95 ,click=False , name='Проверка сколько скинов на покупке')
             if checkBuy is not False:
                 # Если запрос есть то проверяем сколько там еще скинов на покупки
-                numbers = template_finder.find_number_on_screen(self.driver_manager.driver , ZAPROS[0] , ZAPROS[1] , ZAPROS[2] , ZAPROS[3])
+                numbers = template_finder.find_count_on_screen(self.driver_manager.driver , ZAPROS[0] , ZAPROS[1] , ZAPROS[2] , ZAPROS[3])
                 if numbers is None: 
                     numbers = 1 
                     print(int(numbers) , "ПРОВЕРКА КОЛ-ВА ЗАПРОСОВ")
@@ -96,12 +92,12 @@ class TraidingServices:
                         numbers = int(numbers) // 10
                         print(int(numbers) , "ПРОВЕРКА КОЛ-ВА ЗАПРОСОВ")
                     return int(numbers)                
-            print('НЕТУ ЗАПРОСА')
-            requestPrice = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/request.png", threshold=0.9)
+            print('Запросов на скин - нет , нажимаю заказать')
+            requestPrice = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/request.png", threshold=0.9, name='кнопка заказать')
             time.sleep(1)
-            selectCount = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/selectCount.png", threshold=0.9 ,click=False)
+            selectCount = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/selectCount.png", threshold=0.9 ,click=False , name='Лейбл моя цена')
             if selectCount: 
-                click_action.random_click(self.driver_manager.driver, selectCount, max_offset=7 , offsetN_x=200)
+                click_action.random_click(self.driver_manager.driver, selectCount, max_offset=10 , offsetN_x=350)
                 CountFill = WebDriverWait(self.driver_manager.driver, 5).until(
                         EC.presence_of_all_elements_located((AppiumBy.CLASS_NAME, 'android.widget.EditText')))
                 if CountFill:
@@ -111,7 +107,7 @@ class TraidingServices:
                             EC.presence_of_all_elements_located((AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("ОК")')))
                     OK_Button[0].click()
 
-                click_action.random_click(self.driver_manager.driver, selectCount, max_offset=7 , offsetN_x=200 , offsetN_y=-40)
+                click_action.random_click(self.driver_manager.driver, selectCount, max_offset=7 , offsetN_x=350 , offsetN_y=-100)
                 PriceFill = WebDriverWait(self.driver_manager.driver, 5).until(
                         EC.presence_of_all_elements_located((AppiumBy.CLASS_NAME, 'android.widget.EditText')))
                 if PriceFill:
@@ -121,7 +117,7 @@ class TraidingServices:
                             EC.presence_of_all_elements_located((AppiumBy.ANDROID_UIAUTOMATOR, f'new UiSelector().text("ОК")')))
                     OK_Button[0].click()
             time.sleep(2)
-            LastBuyButton = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/BuyFinnuly.png", threshold=0.95,regionX=230,regionY=302,regionW=502,regionH=120)
+            LastBuyButton = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/BuyFinnuly.png", threshold=0.95, name='кнопка Заказать уже в меню (заказа)')
             time.sleep(1)
             self.driver_manager.driver.back()
             return True
@@ -134,12 +130,12 @@ class TraidingServices:
 
     def sell_skin(self, sell_price, url_check_nackl, count , checkNakl=True , wait_for_sell=3):
         sellSkin = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/sellSkin.png", threshold=0.9 , name='Кнопка продажди')
-        click_action.random_click(self.driver_manager.driver, (TAP_SKIN[0], TAP_SKIN[1]), max_offset=5)
+        click_action.random_click(self.driver_manager.driver, (TAP_SKIN[0], TAP_SKIN[1]), max_offset=20)
         selectedSkin = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/selectedSkin.png", threshold=0.9, name = 'Кновка выбрать')
         selectedPriceSkin = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/selectedPriceMeSkin.png", threshold=0.9 , name = 'Введите цены')
 
         if selectedPriceSkin is not False:
-            click_action.random_click(self.driver_manager.driver, selectedPriceSkin, max_offset=4, offsetN_x=230)
+            click_action.random_click(self.driver_manager.driver, selectedPriceSkin, max_offset=10, offsetN_x=350)
         
         price = str(sell_price)
         if checkNakl:
@@ -158,7 +154,6 @@ class TraidingServices:
                 Fill[0].clear()
                 Fill[0].send_keys(price)
                 time.sleep(0.35)
-                click_action.random_click(self.driver_manager.driver, (OK_FIELD[0], OK_FIELD[1]))
         except:
             print('нет скина')
             return 0
@@ -176,20 +171,20 @@ class TraidingServices:
             try:
                 click_action.random_click(self.driver_manager.driver, sellSkin)
                 time.sleep(random.randint(10 , 20) / (wait_for_sell * 100))
-                click_action.random_click(self.driver_manager.driver, (277, 125), max_offset=12)
+                click_action.random_click(self.driver_manager.driver, (TAP_SKIN[0], TAP_SKIN[1]), max_offset=12)
                 click_action.random_click(self.driver_manager.driver, selectedSkin)
                 time.sleep(random.randint(10 , 35) / (wait_for_sell * 100))
 
                 if checkNakl:
                     CheckNackl = template_finder.find_item_region(
                         self.driver_manager.driver, f"./img/skins/{url_check_nackl}CheckNackl.png",
-                        regionX=180, regionY=132, regionW=400, regionH=228,
+                        regionX=REGION_CHECK_NAKL[0], regionY=REGION_CHECK_NAKL[1], regionW=REGION_CHECK_NAKL[2], regionH=REGION_CHECK_NAKL[3],
                         threshold=0.99, click=False , name=f'Проверка наклееки {url_check_nackl}'
                     )
 
                     if CheckNackl is False: price = '222.54'
 
-                click_action.random_click(self.driver_manager.driver, selectedPriceSkin, max_offset=5, offsetN_x=230)
+                click_action.random_click(self.driver_manager.driver, selectedPriceSkin, max_offset=10, offsetN_x=350)
                 
                 Fill = WebDriverWait(self.driver_manager.driver, 5).until(
                     EC.presence_of_all_elements_located((AppiumBy.CLASS_NAME, 'android.widget.EditText')))
@@ -197,7 +192,6 @@ class TraidingServices:
                     Fill[0].clear()
                     Fill[0].send_keys(price)
                     time.sleep(0.15)
-                    click_action.random_click(self.driver_manager.driver, (OK_FIELD[0], OK_FIELD[1]))
 
                 click_action.random_click(self.driver_manager.driver, createdLotSkin)
                 time.sleep(random.randint(50 , 85) / (wait_for_sell * 100))
@@ -223,14 +217,13 @@ class TraidingServices:
     def get_gold_balance(self):
         try:
             gold_icon = template_finder.find_item_region(self.driver_manager.driver, "./img/interfeces/iconGold.png", 
-                                                         threshold=0.8 , click=False , regionX=GOLD_BALANCE[0], 
-                                                         regionY=GOLD_BALANCE[1], regionW=GOLD_BALANCE[2], regionH=GOLD_BALANCE[3])
+                                                         threshold=0.8 , click=False)
             if gold_icon is False:
                 print("❌ Иконка золота не найдена")
                 driver_manager.driver.back()
                 return False
             print(gold_icon)
-            gold_balance = template_finder.find_number_on_screen(self.driver_manager.driver, regionX=gold_icon[0]+10, 
+            gold_balance = template_finder.find_number_in_balance(self.driver_manager.driver, regionX=gold_icon[0]+10, 
                                                            regionY=gold_icon[1]-20, regionW=140, regionH=40)
             return gold_balance
         except Exception as e:

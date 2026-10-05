@@ -1,4 +1,4 @@
 class DevicesConfig:
     def __init__(self):
-        self.weidth = 960
-        self.height = 540
+        self.weidth = 1920
+        self.height = 1080

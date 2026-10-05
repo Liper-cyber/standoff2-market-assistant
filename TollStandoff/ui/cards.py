@@ -375,7 +375,7 @@ class AccountCard:
 
         # Информация об аккаунте
         tk.Label(right_frame, text=name, font=("Arial", 13, "bold"), bg=bg_color, anchor="w").pack(anchor="w")
-        tk.Label(right_frame, text=email, font=("Arial", 10), bg=bg_color, fg="#555", anchor="w").pack(anchor="w")
+        tk.Label(right_frame, text='Скрыл для видео', font=("Arial", 10), bg=bg_color, fg="#555", anchor="w").pack(anchor="w")
         tk.Label(right_frame, text=f"Gold: {gold}", font=("Arial", 12, "bold"), 
                  bg=bg_color, fg="#f1c40f", anchor="w").pack(anchor="w", pady=(8, 12))
 

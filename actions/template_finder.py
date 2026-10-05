@@ -49,7 +49,7 @@ def find_item_region(driver, template_path, regionX = 0, regionY = 0,
                                    threshold=0.5 , click = True , name = 'Имя'):
     """
     Ищет шаблон в указанной области с помощью OpenCV
-    если ничего не нашел возвращает false , если нашел возвращает элемент в паняти который хранит X Y Ширину Длину
+    если ничего не нашел возвращает false , если нашел возвращает центральные координаты элемента на экране
     
     ИСПОЛЬЗОВНИЕ element = find_template_in_region_opencv(driver, "./img/interfeces/checkBuySkin.png", threshold=0.9 , click=False)
     random_click_on_element(driver , (element.location['x'] , element.location['y']), offsetN_x=250)
@@ -106,22 +106,6 @@ def find_item_region(driver, template_path, regionX = 0, regionY = 0,
     print(f"❌ Шаблон {name} не найден в области")
     return False
 
-# --- Ваши RGB-диапазоны ---
-# Текст (оставить): светло-жёлтый
-TEXT_RGB_LOWER = (196, 153, 92)
-TEXT_RGB_UPPER = (215, 172, 115)
-
-# Исключение (убрать): жёлто-зелёный шум
-EXCL_RGB_LOWER = (171, 164, 18)
-EXCL_RGB_UPPER = (177, 156, 18)
-
-
-def rgb_to_hsv_opencv(rgb):
-    """Конвертирует RGB-кортеж в HSV OpenCV (H 0..179)."""
-    arr = np.uint8([[rgb]])                       # RGB
-    bgr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
-    hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
-    return tuple(int(x) for x in hsv[0][0])
 
 
 def find_number_in_balance(driver, regionX, regionY, regionW, regionH):
@@ -141,51 +125,21 @@ def find_number_in_balance(driver, regionX, regionY, regionW, regionH):
         hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
 
         # 3. Основная маска — ТЕКСТ (светло-жёлтый)
-        lower_text = np.array([15,  80, 190], dtype=np.uint8)
+        lower_text = np.array([15, 80, 190], dtype=np.uint8)
         upper_text = np.array([35, 180, 255], dtype=np.uint8)
         mask_text = cv2.inRange(hsv, lower_text, upper_text)
 
-        # 4. Маска-исключение — конвертируем ваши RGB в HSV
-        hsv_excl_lower = rgb_to_hsv_opencv(EXCL_RGB_LOWER)
-        hsv_excl_upper = rgb_to_hsv_opencv(EXCL_RGB_UPPER)
-
-        # Берём min/max по каждому каналу — на случай если порядок H "перевернулся"
-        H_lo, S_lo, V_lo = hsv_excl_lower
-        H_hi, S_hi, V_hi = hsv_excl_upper
-
-        # Запас ±5 по каждому каналу, чтобы наверняка захватить шум
-        lower_excl = np.array([
-            max(0,   min(H_lo, H_hi) - 5),
-            max(0,   min(S_lo, S_hi) - 20),
-            max(0,   min(V_lo, V_hi) - 20),
-        ], dtype=np.uint8)
-        upper_excl = np.array([
-            min(179, max(H_lo, H_hi) + 5),
-            min(255, max(S_lo, S_hi) + 20),
-            min(255, max(V_lo, V_hi) + 20),
-        ], dtype=np.uint8)
-
-        mask_excl = cv2.inRange(hsv, lower_excl, upper_excl)
-
-        # 5. Итог: текст МИНУС исключение
-        mask_final = cv2.bitwise_and(mask_text, cv2.bitwise_not(mask_excl))
-
-        # 7. Инверсия: EasyOCR ждёт ЧЁРНЫЙ текст на БЕЛОМ
+        # 3. Инверсия: EasyOCR ждёт ЧЁРНЫЙ текст на БЕЛОМ
         mask_final = cv2.bitwise_not(mask_text)
 
-        # 8. Увеличение
+        # 4. Увеличение
         final_img = cv2.resize(mask_final, None, fx=3.0, fy=3.0,
                                interpolation=cv2.INTER_CUBIC)
 
-        # 9. Отладка
+        # 5. Отладка
         cv2.imwrite("debug_01_original.png", img_bgr)
+        cv2.imwrite("debug_02_hsv.png", hsv)
         cv2.imwrite("debug_final.png", final_img)
-
-        # 10. Проверка, что текст остался
-        black_ratio = (final_img == 0).sum() / final_img.size
-        if black_ratio < 0.005:
-            print("⚠️ В маске почти нет текста — ослабьте исключение или расширьте текст")
-            return None
 
         # 11. EasyOCR
         results = reader.readtext(
@@ -195,9 +149,6 @@ def find_number_in_balance(driver, regionX, regionY, regionW, regionH):
             text_threshold=0.4,
             low_text=0.3,
         )
-
-        for (bbox, text, prob) in results:
-            print(f"   -> {text!r} (prob={prob:.3f})")
 
         if not results:
             print("❌ Ничего не найдено")

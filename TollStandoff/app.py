@@ -79,8 +79,8 @@ class MenuApp:
         self.id_devices = tk.StringVar(value="1")
         self.photo_x_var = tk.StringVar(value="0")
         self.photo_y_var = tk.StringVar(value="0")
-        self.photo_w_var = tk.StringVar(value="960")
-        self.photo_h_var = tk.StringVar(value="540")
+        self.photo_w_var = tk.StringVar(value="1920")
+        self.photo_h_var = tk.StringVar(value="1080")
         self.photo_path_var = tk.StringVar(value="./img/screenshots/region.png")
         self.photo_driver = None
         self.photo_driver_manager = None

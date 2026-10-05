@@ -102,6 +102,7 @@ def TradeByuSell(account_id , skin_count_sell=(20,25) ,selling_price='sell_globa
         # выбираем рандомный скин и рандомное количесто на продажу , что бы уменьшить риски бана за бота
         skin_sell = random.choice(skins_sell_row)
         trade.open_need_skin(skin_sell['url'] , skin_sell['name'])
+        print('Начинаю продавать - ', skin_sell['name'])
         selling_count = trade.sell_skin(skin_sell[selling_price], skin_sell['url'] , random.randint(*skin_count_sell))
         data.execute_query('UPDATE account_skins SET last_sell = NOW() , sell_count = sell_count + %s  WHERE skin_id = %s and account_id = %s' , params=(selling_count, skin_sell['id'], account_id,))
 
@@ -119,7 +120,7 @@ def add_history_for_account(account_id):
     return account_data
 
         
-def sell_random_skins(account_id):
+def sell_random_skins(account_id, count_sell=(80, 140)):
     """Функция для скипа времени , если аккаунт выставил все запросы , то мы переходим в продажу скиннов что бы не забиват
     Инвентарь аккаунта , продаем по глобальной цене(выставлять скину -  долго , отменять если это нужно будет - быстро)"""
     skins = data.execute_query("""SELECT s.id , s.url , s.name , s.sell_price , s.sell_global_price FROM account_skins ask
@@ -127,7 +128,7 @@ def sell_random_skins(account_id):
         WHERE ask.account_id = %s and ask.is_sale = true""", params=(account_id,), fetch_all=True)
     skin = random.choice(skins)
     trade.open_need_skin(skin['url'] , skin['name'])
-    selling_count =trade.sell_skin(skin['sell_global_price'], skin['url'] , random.randint(80, 140))
+    selling_count =trade.sell_skin(skin['sell_global_price'], skin['url'] , random.randint(count_sell))
     data.execute_query('UPDATE account_skins SET last_sell = NOW() , sell_count = sell_count + %s WHERE skin_id = %s and account_id = %s' , params=(selling_count, skin['id'], account_id,))
 
 
@@ -148,13 +149,10 @@ def buy_action(account_id, actions = 'Тест функций' , gold_check = Tr
     
     
     DevicesManager().create_device(VM_id=VM_id['id_nox'] , port=VM_id['proxy_port']) # создали VM
-    time.sleep(20)
     capability_me = appium_config.get_capabilities(VM_id['id_nox']) # получили для него capability что бы подключиться 
 
     from services.traiding_services import TraidingServices
     trade = TraidingServices() # тут мы запускаем сервера , дарайвера, OPENCV - компьютерноее зрения
-
-    time.sleep(40)
     
     count_def = 0
     if actions == 'Продажа по Глобальной цене' or actions == 'Продажа по обычной цене':
@@ -267,10 +265,6 @@ def custom_buy(account_id=1, skin_count_sell=(20,25) ,selling_price='sell_global
     ZAPROS = [286, 112, 196, 16] # текст вашзапрос на покупку
     GOLD_BALANCE = [770, 0, 192, 50] # Координаты для получения баланса
 
-    numbers = find_number_in_balance(trade.driver_manager.driver , 851 , 4 , 140 , 40)
+    numbers = find_number_in_balance(trade.driver_manager.driver , 1700 , 0 , 220 , 100)
+    trade.get_gold_balance()
     
-
-    
-    
-    
-
