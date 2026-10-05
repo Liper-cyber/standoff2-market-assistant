@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import messagebox
 from PIL import Image, ImageTk
 import multiprocessing as mp
+from decimal import Decimal
 
 class ProductCardGrid:
     """Класс карточки товара с изображением для сетки"""
@@ -182,12 +183,12 @@ class ProductCardGrid:
 
         def save_changes():
             try:
-                min_buy = float(buy_min_entry.get())
-                max_buy = float(buy_max_entry.get())
-                new_sell = float(sell_entry.get())
-                current_buy = float(buy_current_entry.get())
-                new_global = float(global_entry.get())
-                time_out = float(wait_skin_entry.get())
+                min_buy = Decimal(buy_min_entry.get().replace(",", "."))
+                max_buy = Decimal(buy_max_entry.get().replace(",", "."))
+                new_sell = Decimal(sell_entry.get().replace(",", "."))
+                current_buy = Decimal(buy_current_entry.get().replace(",", "."))
+                new_global = Decimal(global_entry.get().replace(",", "."))
+                time_out = int(wait_skin_entry.get())
 
                 messagebox.showinfo(
                     "Сохранение",

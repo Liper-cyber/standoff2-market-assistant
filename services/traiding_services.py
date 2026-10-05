@@ -30,6 +30,7 @@ class TraidingServices:
     def __init__(self):
         self.driver_manager = driver_manager
         driver_manager.driver.activate_app('com.axlebolt.standoff2')
+        time.sleep(15)
         
     def open_need_skin(self, skin_url , skin_name , attempts=0):
         max_attempts = 3
@@ -139,13 +140,14 @@ class TraidingServices:
         
         price = str(sell_price)
         if checkNakl:
-                    CheckNackl = template_finder.find_item_region(
-                        self.driver_manager.driver, f"./img/skins/{url_check_nackl}CheckNackl.png",
-                        regionX=REGION_CHECK_NAKL[0], regionY=REGION_CHECK_NAKL[1], regionW=REGION_CHECK_NAKL[2], regionH=REGION_CHECK_NAKL[3],
-                        threshold=0.99, click=False , name='Проверка наклейки'
-                    )
+                #Если наклейка есть то ORC не найдет схожести со скриншотом CheckNackl.png и смет цену
+                CheckNackl = template_finder.find_item_region(
+                    self.driver_manager.driver, f"./img/skins/{url_check_nackl}CheckNackl.png",
+                    regionX=REGION_CHECK_NAKL[0], regionY=REGION_CHECK_NAKL[1], regionW=REGION_CHECK_NAKL[2], regionH=REGION_CHECK_NAKL[3],
+                    threshold=0.99, click=False , name='Проверка наклейки'
+                )
 
-                    if CheckNackl is False: price = '222.54'
+                if CheckNackl is False: price = '222.54'
                     
         try:
             Fill = WebDriverWait(self.driver_manager.driver, 5).until(
